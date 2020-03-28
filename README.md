@@ -1,6 +1,6 @@
 # a0lite
 
-The most basic NN MCTS engine in 95 lines of python. It's single threaded and doesn't make use of "smart" pruning or tree reuse. It's meant for tinkering. As such, more complex developments will be in branches rather in the master. Also check out the forks and see what other's are doing.
+The most basic NN MCTS engine in 95 lines of python. It's single threaded and doesn't make use of "smart" pruning or tree reuse. It's meant for tinkering. As such, more complex developments will be in branches rather than in the master. Also check out the forks and see what others are doing.
 
 You will need to install [badgyal](https://github.com/dkappe/badgyal) for the neural nets.
 
