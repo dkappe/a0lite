@@ -53,9 +53,12 @@ def process_position(tokens):
 
 def load_network():
     log("Loading network")
-
-    #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
-    net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
+    #nn = search.EPDLRUNet(search.MaterialNet(), 8000)
+    #net = search.EPDLRUNet(search.BadGyalNet(), CACHE_SIZE)
+    #net = search.EPDLRUNet(search.MeanGirlNet(), CACHE_SIZE)
+    #net = search.NoDraw(search.EPDLRUNet(search.MeanGirlNet(), CACHE_SIZE))
+    net = search.NoDraw(search.EPDLRUNet(search.BadGyalNet(), CACHE_SIZE))
+    #nn = search.BadGyalNet()
     return net
 
 
@@ -63,6 +66,7 @@ def main():
 
     send("A0 Lite")
     board = chess.Board()
+    tree = None
     nn = None
 
     while True:
@@ -85,10 +89,15 @@ def main():
             send("readyok")
         elif tokens[0] == "ucinewgame":
             board = chess.Board()
-
+            # no tree reuse
+            tree = None
         elif tokens[0] == 'position':
             board = process_position(tokens)
-
+            # see if we can reuse the three
+            if tree != None:
+                tree = tree.childByEpd(board.epd())
+                if tree != None:
+                    tree.makeroot()
         elif tokens[0] == 'go':
             my_nodes = NODES
             my_time = None
@@ -119,12 +128,14 @@ def main():
                     my_time = MINTIME
             if nn == None:
                 nn = load_network()
-
+            if tree != None:
+                sz, exp_sz = tree.size()
+                send("info string tree size {}, expanded {}".format(sz, exp_sz))
 
             if my_time != None:
-                best, score = search.UCT_search(board, 1000000, net=nn, C=C, max_time=my_time, send=send)
+                best, tree, score = search.UCT_search(board, 1000000, net=nn, C=C, max_time=my_time, tree=tree, send=send)
             else:
-                best, score = search.UCT_search(board, my_nodes, net=nn, C=C, send=send)
+                best, tree, score = search.UCT_search(board, my_nodes, net=nn, C=C, tree=tree, send=send)
             send("bestmove {}".format(best))
 
 try:
