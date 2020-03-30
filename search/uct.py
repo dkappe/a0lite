@@ -78,6 +78,34 @@ class UCTNode():
             current = current.parent
         current.number_visits -= VIRTUAL_LOSS_WEIGHT
 
+    def makeroot(self):
+        self.parent = None
+        return self
+
+    def childByEpd(self, epd):
+        # find a child with a board and a matching epd
+        for child in self.children.values():
+            if (child.board != None) and (child.board.epd() == epd):
+                return child
+        # None found
+        return None
+
+    def size(self):
+        count = 1
+        exp_count = 0
+        if self.is_expanded:
+            exp_count = 1
+        if self.children == None:
+            return count, exp_count
+        for child in self.children.values():
+            c, e = child.size()
+            count += c
+            exp_count += e
+        return count, exp_count
+
+    def match_position(self, board):
+        return self.board.epd() == board.epd()
+
 def process_batch(net, batch, collision_nodes):
     for leaf in collision_nodes:
         leaf.undo_virtual_loss()
@@ -103,7 +131,12 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     collisions = 0
     cache_hits = 0
 
-    root = UCTNode(board)
+    # tree reuse
+    if tree != None:
+        root = tree
+    else:
+        root = UCTNode(board)
+
     batch = []
     collision_nodes = []
 
@@ -149,5 +182,6 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         send("info string collisions {} cache hits {}".format(collisions, cache_hits))
         send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
 
-    # if we have a bad score, go for a draw
-    return bestmove, score
+    # make our succesor position the new root
+    node.makeroot()
+    return bestmove, score, node
