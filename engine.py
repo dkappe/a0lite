@@ -8,7 +8,7 @@ CACHE_SIZE = 200000
 MINTIME = 0.1
 TIMEDIV = 25.0
 NODES = 800
-C = 3.0
+C = 2.2
 
 
 logfile = open("a0lite.log", "w")
@@ -56,6 +56,7 @@ def load_network():
 
     #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
     net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
+    #net = search.BadGyalNet(cuda=True)
     return net
 
 

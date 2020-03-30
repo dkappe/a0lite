@@ -1,3 +1,4 @@
+from search.net import Net
 from search.badgyal_net import BadGyalNet
 from search.meangirl_net import MeanGirlNet
 from search.epdlru_net import EPDLRUNet

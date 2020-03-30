@@ -8,6 +8,10 @@ from search.util import cp
 FPU = -1.0
 FPU_ROOT = 0.0
 
+BATCH_SIZE = 128
+COLLISION_SIZE = 16
+VIRTUAL_LOSS_WEIGHT = 20
+
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
         self.board = board
@@ -21,6 +25,8 @@ class UCTNode():
         else:
             self.total_value = FPU
         self.number_visits = 0  # int
+        # for batching
+        self.wip = False
 
     def Q(self):  # returns float
         return self.total_value / (1 + self.number_visits)
@@ -35,8 +41,10 @@ class UCTNode():
 
     def select_leaf(self, C):
         current = self
+        current.number_visits += VIRTUAL_LOSS_WEIGHT
         while current.is_expanded and current.children:
             current = current.best_child(C)
+            current.number_visits += VIRTUAL_LOSS_WEIGHT
         if not current.board:
             current.board = current.parent.board.copy()
             current.board.push_uci(current.move)
@@ -44,6 +52,7 @@ class UCTNode():
 
     def expand(self, child_priors):
         self.is_expanded = True
+        self.wip = False
         for move, prior in child_priors.items():
             self.add_child(move, prior)
 
@@ -55,13 +64,33 @@ class UCTNode():
         # Child nodes are multiplied by -1 because we want max(-opponent eval)
         turnfactor = -1
         while current.parent is not None:
-            current.number_visits += 1
+            current.number_visits -= (VIRTUAL_LOSS_WEIGHT-1)
             current.total_value += (value_estimate *
                                     turnfactor)
             current = current.parent
             turnfactor *= -1
-        current.number_visits += 1
+        current.number_visits -= (VIRTUAL_LOSS_WEIGHT-1)
 
+    def undo_virtual_loss(self):
+        current = self
+        while current.parent is not None:
+            current.number_visits -= VIRTUAL_LOSS_WEIGHT
+            current = current.parent
+        current.number_visits -= VIRTUAL_LOSS_WEIGHT
+
+def process_batch(net, batch, collision_nodes):
+    for leaf in collision_nodes:
+        leaf.undo_virtual_loss()
+    collision_nodes *= 0
+    if len(batch) < 1:
+        return
+    # do the processing
+    bulk_child_priors, bulk_value_estimates = net.bulk_evaluate([l.board for l in batch])
+    for i, leaf in enumerate(batch):
+        leaf.expand(bulk_child_priors[i])
+        leaf.backup(bulk_value_estimates[i])
+    # empty the list
+    batch *= 0
 
 def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, tree=None, send=None):
     if max_time == None:
@@ -71,24 +100,53 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
 
     start = time()
     count = 0
+    collisions = 0
+    cache_hits = 0
 
     root = UCTNode(board)
-    for i in range(num_reads):
-        count += 1
+    batch = []
+    collision_nodes = []
+
+    nodes_done = 0
+
+    while count < num_reads:
         leaf = root.select_leaf(C)
-        child_priors, value_estimate = net.evaluate(leaf.board)
-        leaf.expand(child_priors)
-        leaf.backup(value_estimate)
+
+        if leaf.wip:
+            # we've already seen this leaf, so skip it
+            #leaf.undo_virtual_loss()
+            collisions += 1
+            collision_nodes.append(leaf)
+            #process_batch(net, batch)
+        else:
+            # otherwise mark it as wip and put it in the batch
+            leaf.wip = True
+            count += 1
+            # see if we already have this thing
+            child_priors, value_estimate = net.cached_evaluate(leaf.board)
+            if child_priors == None:
+                batch.append(leaf)
+                if ((len(batch) >= BATCH_SIZE) or (len(collision_nodes) >= COLLISION_SIZE) or (count < 32)):
+                    process_batch(net, batch, collision_nodes)
+            else:
+                cache_hits += 1
+                leaf.expand(child_priors)
+                leaf.backup(value_estimate)
         now = time()
         delta = now - start
         if (time != None) and (delta > max_time):
             break
 
+    # process any left over batch
+    process_batch(net, batch, collision_nodes)
+
+    # now get the rest
     bestmove, node = max(root.children.items(), key=lambda item: (item[1].number_visits, item[1].Q()))
     score = int(round(cp(node.Q()),0))
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
             send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
+        send("info string collisions {} cache hits {}".format(collisions, cache_hits))
         send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
 
     # if we have a bad score, go for a draw
