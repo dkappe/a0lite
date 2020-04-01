@@ -4,13 +4,16 @@ import chess
 from collections import OrderedDict
 from time import time
 from search.util import cp
+from search.pruner import Pruner
 
 FPU = -1.0
 FPU_ROOT = 0.0
-
+PRUNER = Pruner(factor=0.6)
+MATE_VAL = 32000
 BATCH_SIZE = 128
 COLLISION_SIZE = 16
 VIRTUAL_LOSS_WEIGHT = 3
+DRAW_THRESHOLD = -120
 
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
@@ -36,7 +39,15 @@ class UCTNode():
                 * self.prior / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT)))
 
     def best_child(self, C):
-        return max(self.children.values(),
+        # do something special at root
+        if self.parent:
+            chillin = self.children.values()
+        else:
+            non_draws = [child[1] for child in self.children.items() if not PRUNER.is_draw(child[0])]
+            chillin = PRUNER.prune(non_draws)
+            if len(chillin) < 1:
+                chillin = self.children.values()
+        return max(chillin,
                    key=lambda node: node.Q() + C*node.U())
 
     def select_leaf(self, C):
@@ -127,6 +138,25 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         # search for a maximum of an hour
         max_time = 3600.0
     max_time = max_time - 0.05
+    PRUNER.update_board(board)
+
+    # if we have a mate or all moves result in mates or draws, handle it without a search
+    mate = PRUNER.get_mate()
+    if mate != None:
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(MATE_VAL, 0, 0, mate))
+        return mate, MATE_VAL, None
+
+    if PRUNER.all_terminal():
+        draw = PRUNER.get_draw()
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(0, 0, 0, draw))
+        return draw, 0, None
+
+    # reduce num_reads if there is only one move
+    if len(list(board.legal_moves)) == 1:
+        num_reads = 50
+
+    # back to searching
+    PRUNER.set_timeleft(max_time)
 
     start = time()
     count = 0
@@ -162,12 +192,18 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
                 batch.append(leaf)
                 if ((len(batch) >= BATCH_SIZE) or (len(collision_nodes) >= COLLISION_SIZE) or (count < 32)):
                     process_batch(net, batch, collision_nodes)
+                    if PRUNER.futile(root.children.items()):
+                        send("info string smart prune stop")
+                        now = time()
+                        delta = now - start
+                        break
             else:
                 cache_hits += 1
                 leaf.expand(child_priors)
                 leaf.backup(value_estimate)
         now = time()
         delta = now - start
+        PRUNER.set_timeleft(max_time-delta)
         if (time != None) and (delta > max_time):
             break
 
@@ -177,12 +213,19 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     # now get the rest
     bestmove, node = max(root.children.items(), key=lambda item: (item[1].number_visits, item[1].Q()))
     score = int(round(cp(node.Q()),0))
-    
+    PRUNER.update_nps(count/delta)
+
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
             send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
-        send("info string collisions {} cache hits {}".format(collisions, cache_hits))
+        send("info string collisions {} cache hits {} nps avg {}".format(collisions, cache_hits, round(PRUNER.nps, 2)))
         send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
+
+    # if we have a bad score, go for a draw
+    if score < DRAW_THRESHOLD:
+        draw = PRUNER.get_draw()
+        if draw != None:
+            return draw, 0, None
 
     # make our succesor position the new root
     node.makeroot()
