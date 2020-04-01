@@ -10,7 +10,7 @@ FPU_ROOT = 0.0
 
 BATCH_SIZE = 128
 COLLISION_SIZE = 16
-VIRTUAL_LOSS_WEIGHT = 20
+VIRTUAL_LOSS_WEIGHT = 3
 
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
@@ -26,14 +26,14 @@ class UCTNode():
             self.total_value = FPU
         self.number_visits = 0  # int
         # for batching
-        self.wip = False
+        self.virtual_loss = 0
 
     def Q(self):  # returns float
-        return self.total_value / (1 + self.number_visits)
+        return self.total_value / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT))
 
     def U(self):  # returns float
         return (math.sqrt(self.parent.number_visits)
-                * self.prior / (1 + self.number_visits))
+                * self.prior / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT)))
 
     def best_child(self, C):
         return max(self.children.values(),
@@ -44,7 +44,7 @@ class UCTNode():
         current.number_visits += VIRTUAL_LOSS_WEIGHT
         while current.is_expanded and current.children:
             current = current.best_child(C)
-            current.number_visits += VIRTUAL_LOSS_WEIGHT
+            current.virtual_loss += 1
         if not current.board:
             current.board = current.parent.board.copy()
             current.board.push_uci(current.move)
@@ -52,7 +52,6 @@ class UCTNode():
 
     def expand(self, child_priors):
         self.is_expanded = True
-        self.wip = False
         for move, prior in child_priors.items():
             self.add_child(move, prior)
 
@@ -64,19 +63,21 @@ class UCTNode():
         # Child nodes are multiplied by -1 because we want max(-opponent eval)
         turnfactor = -1
         while current.parent is not None:
-            current.number_visits -= (VIRTUAL_LOSS_WEIGHT-1)
+            current.number_visits += 1
+            current.virtual_loss -= 1
             current.total_value += (value_estimate *
                                     turnfactor)
             current = current.parent
             turnfactor *= -1
-        current.number_visits -= (VIRTUAL_LOSS_WEIGHT-1)
+        current.number_visits += 1
+        current.virtual_loss -= 1
 
     def undo_virtual_loss(self):
         current = self
         while current.parent is not None:
-            current.number_visits -= VIRTUAL_LOSS_WEIGHT
+            current.virtual_loss -= 1
             current = current.parent
-        current.number_visits -= VIRTUAL_LOSS_WEIGHT
+        current.virtual_loss -= 1
 
     def makeroot(self):
         self.parent = None
@@ -105,6 +106,7 @@ class UCTNode():
 
     def match_position(self, board):
         return self.board.epd() == board.epd()
+
 
 def process_batch(net, batch, collision_nodes):
     for leaf in collision_nodes:
@@ -145,15 +147,14 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     while count < num_reads:
         leaf = root.select_leaf(C)
 
-        if leaf.wip:
+        if leaf.virtual_loss > 1:
             # we've already seen this leaf, so skip it
             #leaf.undo_virtual_loss()
             collisions += 1
             collision_nodes.append(leaf)
             #process_batch(net, batch)
         else:
-            # otherwise mark it as wip and put it in the batch
-            leaf.wip = True
+            # otherwise put it in the batch
             count += 1
             # see if we already have this thing
             child_priors, value_estimate = net.cached_evaluate(leaf.board)
@@ -176,6 +177,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     # now get the rest
     bestmove, node = max(root.children.items(), key=lambda item: (item[1].number_visits, item[1].Q()))
     score = int(round(cp(node.Q()),0))
+    
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
             send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
