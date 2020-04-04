@@ -62,6 +62,14 @@ class UCTNode():
             turnfactor *= -1
         current.number_visits += 1
 
+def get_best_move(root):
+    bestmove, node = max(root.children.items(), key=lambda item: (item[1].number_visits, item[1].Q()))
+    score = int(round(cp(node.Q()),0))
+    return bestmove, node, score
+
+def send_info(send, bestmove, count, delta, score):
+    if send != None:                
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
 
 def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, tree=None, send=None):
     if max_time == None:
@@ -71,6 +79,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
 
     start = time()
     count = 0
+    delta_last = 0
 
     root = UCTNode(board)
     for i in range(num_reads):
@@ -81,11 +90,15 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         leaf.backup(value_estimate)
         now = time()
         delta = now - start
+        if (delta - delta_last > 5):
+            delta_last = delta
+            bestmove, node, score = get_best_move(root)
+            send_info(send, bestmove, count, delta, score)
+              
         if (time != None) and (delta > max_time):
             break
 
-    bestmove, node = max(root.children.items(), key=lambda item: (item[1].number_visits, item[1].Q()))
-    score = int(round(cp(node.Q()),0))
+    bestmove, node, score = get_best_move(root)
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
             send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
