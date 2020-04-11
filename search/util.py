@@ -1,4 +1,5 @@
 import numpy as np
+import chess
 
 def softmax2(x):
     z = np.array(list(x))
@@ -22,3 +23,7 @@ def temp_softmax(x, sm=2.2):
 
 def cp(Q):
     return int(295 * Q / ( 1 - 0.976953125 * Q**14 ))
+
+def piece_count(board):
+    return len(board.piece_map())
+    
