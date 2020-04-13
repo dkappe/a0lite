@@ -10,7 +10,7 @@ MINTIME = 0.1
 TIMEDIV = 25.0
 NODES = 800
 C = 3.0
-ENDGAME_COUNT = 14
+ENDGAME_COUNT = 16
 
 logfile = open("a0lite.log", "w")
 LOG = True
