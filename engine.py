@@ -55,10 +55,11 @@ def process_position(tokens):
 def load_network():
     log("Loading network")
 
-    net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
-    endgame_net = search.EPDLRUNet(search.LittleEnderNet(cuda=True), CACHE_SIZE)
+    main_net = search.BadGyalNet(cuda=True)
+    endgame_net = search.LittleEnderNet(cuda=True)
+    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
     #net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
-    return net, endgame_net
+    return net
 
 
 def main():
@@ -84,7 +85,7 @@ def main():
             exit(0)
         elif tokens[0] == "isready":
             if nn == None:
-                nn, endgame_nn = load_network()
+                nn = load_network()
             send("readyok")
         elif tokens[0] == "ucinewgame":
             board = chess.Board()
@@ -121,20 +122,18 @@ def main():
                 if my_time < MINTIME:
                     my_time = MINTIME
             if nn == None:
-                nn, endgame_nn = load_network()
+                nn = load_network()
 
             pc = piece_count(board)
             if pc <= ENDGAME_COUNT:
-                use_nn = endgame_nn
                 send("info string using endgame net")
             else:
-                use_nn = nn
                 send("info string using main net ({})".format(pc))
 
             if my_time != None:
-                best, score = search.UCT_search(board, 1000000, net=use_nn, C=C, max_time=my_time, send=send)
+                best, score = search.UCT_search(board, 1000000, net=nn, C=C, max_time=my_time, send=send)
             else:
-                best, score = search.UCT_search(board, my_nodes, net=use_nn, C=C, send=send)
+                best, score = search.UCT_search(board, my_nodes, net=nn, C=C, send=send)
             send("bestmove {}".format(best))
 
 try:

@@ -13,10 +13,9 @@ class EPDLRUNet:
     def evaluate(self, board : chess.Board):
         epd = board.epd()
         if epd in self.cache:
-            policy, value = self.cache[epd]
-            return policy, value
+            policy, value, certainty = self.cache[epd]
+            return policy, value, certainty
         else:
-            policy, value = self.net.evaluate(board)
-            self.cache[epd] = [policy, value]
-            return policy, value
-
+            policy, value, certainty = self.net.evaluate(board)
+            self.cache[epd] = [policy, value, certainty]
+            return policy, value, certainty
