@@ -4,6 +4,7 @@ import chess
 from collections import OrderedDict
 from time import time
 from search.util import cp
+import sys
 
 FPU = -1.0
 FPU_ROOT = 0.0
@@ -11,6 +12,11 @@ WIN = 1.0
 LOSS = -1.0
 DRAW = 0.0
 DRAW_THRESHOLD = -50
+
+def log(msg):
+    sys.stderr.write(str(msg))
+    sys.stderr.write("\n")
+    sys.stderr.flush()
 
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
@@ -90,12 +96,19 @@ class UCTNode():
             current.number_visits += 1
             current.total_value += (value_estimate *
                                     turnfactor)
-            if self.certainty == None:
+            if current.certainty == None:
                 current.certainty = current.compute_certainty()
             current = current.parent
             turnfactor *= -1
         current.number_visits += 1
         current.certainty = current.compute_certainty()
+
+    def dump(self):
+        log("parent {}".format(self.parent))
+        log("certainty {} {}".format(self.certainty, self.compute_certainty()))
+
+        for m, c in self.children.items():
+            log(" - move {}, certainty {}".format(m, c.certainty))
 
 def get_best_move(root):
     # TODO deal with certain draws if the alternative "best move" sucks
@@ -156,6 +169,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         # check to see if we have a forced win
         if root.certainty != None:
             break
+
 
     bestmove, node, score = get_best_move(root)
 
