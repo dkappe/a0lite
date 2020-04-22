@@ -85,7 +85,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     for i in range(num_reads):
         count += 1
         leaf = root.select_leaf(C)
-        child_priors, value_estimate = net.evaluate(leaf.board)
+        child_priors, value_estimate = net.evaluate(leaf.board, at_root=(leaf.parent == None))
         leaf.expand(child_priors)
         leaf.backup(value_estimate)
         now = time()

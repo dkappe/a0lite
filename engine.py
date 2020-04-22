@@ -9,7 +9,7 @@ MINTIME = 0.1
 TIMEDIV = 25.0
 NODES = 800
 C = 3.0
-
+ENDGAME_COUNT = 12
 
 logfile = open("a0lite.log", "w")
 LOG = True
@@ -54,8 +54,11 @@ def process_position(tokens):
 def load_network():
     log("Loading network")
 
+    main_net = search.BadGyalNet(cuda=True)
+    endgame_net = search.LittleEnderNet(cuda=True)
+    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
     #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
-    net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
+    #net = search.EPDLRUNet(search.MeanGirlNet(cuda=True), CACHE_SIZE)
     return net
 
 
@@ -90,6 +93,9 @@ def main():
             board = process_position(tokens)
 
         elif tokens[0] == 'go':
+            if board.is_game_over(claim_draw=False):
+                send("bestmove (none)")
+                continue
             my_nodes = NODES
             my_time = None
             if (len(tokens) == 3) and (tokens[1] == 'nodes'):
@@ -120,7 +126,7 @@ def main():
             if nn == None:
                 nn = load_network()
 
-
+            send("info string piece count {}".format(len(board.piece_map())))
             if my_time != None:
                 best, score = search.UCT_search(board, 1000000, net=nn, C=C, max_time=my_time, send=send)
             else:
