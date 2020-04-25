@@ -8,12 +8,13 @@ from search.pruner import Pruner
 
 FPU = -1.0
 FPU_ROOT = 0.0
-PRUNER = Pruner(factor=0.6)
+PRUNER = Pruner(factor=1.0)
 MATE_VAL = 32000
 BATCH_SIZE = 128
 COLLISION_SIZE = 16
 VIRTUAL_LOSS_WEIGHT = 3
 DRAW_THRESHOLD = -120
+SINGLE_BATCH = 45
 
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
@@ -52,7 +53,7 @@ class UCTNode():
 
     def select_leaf(self, C):
         current = self
-        current.number_visits += VIRTUAL_LOSS_WEIGHT
+        current.virtual_loss += 1
         while current.is_expanded and current.children:
             current = current.best_child(C)
             current.virtual_loss += 1
@@ -182,15 +183,23 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
             #leaf.undo_virtual_loss()
             collisions += 1
             collision_nodes.append(leaf)
-            #process_batch(net, batch)
+            if ((len(batch) >= BATCH_SIZE) or (len(collision_nodes) >= COLLISION_SIZE) or (count < SINGLE_BATCH)):
+                #send("info string batch {} collisions {}".format(len(batch), len(collision_nodes)))
+                process_batch(net, batch, collision_nodes)
+                if PRUNER.futile(root.children.items()):
+                    send("info string smart prune stop")
+                    now = time()
+                    delta = now - start
+                    break
         else:
             # otherwise put it in the batch
             count += 1
             # see if we already have this thing
-            child_priors, value_estimate = net.cached_evaluate(leaf.board)
+            child_priors, value_estimate = net.cached_evaluate(leaf.board, at_root=(leaf.parent == None))
             if child_priors == None:
                 batch.append(leaf)
-                if ((len(batch) >= BATCH_SIZE) or (len(collision_nodes) >= COLLISION_SIZE) or (count < 32)):
+                if ((len(batch) >= BATCH_SIZE) or (len(collision_nodes) >= COLLISION_SIZE) or (count < SINGLE_BATCH)):
+                    #send("info string batch {} collisions {}".format(len(batch), len(collision_nodes)))
                     process_batch(net, batch, collision_nodes)
                     if PRUNER.futile(root.children.items()):
                         send("info string smart prune stop")
@@ -207,6 +216,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         if (time != None) and (delta > max_time):
             break
 
+
     # process any left over batch
     process_batch(net, batch, collision_nodes)
 
@@ -217,7 +227,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
 
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
-            send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
+            send("info string {} {} \t(P: {}%) \t(Q: {}) \t(VL: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5), nd[1].virtual_loss))
         send("info string collisions {} cache hits {} nps avg {}".format(collisions, cache_hits, round(PRUNER.nps, 2)))
         send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
 

@@ -1,5 +1,6 @@
 from search.net import Net
 from search.badgyal_net import BadGyalNet
+from search.badgyal_torch_net import BadGyalTorchNet
 from search.meangirl_net import MeanGirlNet
 from search.epdlru_net import EPDLRUNet
 from search.pruner import Pruner

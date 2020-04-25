@@ -54,7 +54,8 @@ def process_position(tokens):
 def load_network():
     log("Loading network")
 
-    net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
+    #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
+    net = search.EPDLRUNet(search.BadGyalTorchNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
     #net = search.BadGyalNet(cuda=True)
     return net
@@ -97,6 +98,9 @@ def main():
                 if tree != None:
                     tree.makeroot()
         elif tokens[0] == 'go':
+            if board.is_game_over(claim_draw=False):
+                send("bestmove (none)")
+                continue
             my_nodes = NODES
             my_time = None
             if (len(tokens) == 3) and (tokens[1] == 'nodes'):
