@@ -227,7 +227,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
 
     if send != None:
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
-            send("info string {} {} \t(P: {}%) \t(Q: {}) \t(VL: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5), nd[1].virtual_loss))
+            send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
         send("info string collisions {} cache hits {} nps avg {}".format(collisions, cache_hits, round(PRUNER.nps, 2)))
         send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
 

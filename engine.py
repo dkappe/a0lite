@@ -6,9 +6,10 @@ import traceback
 
 CACHE_SIZE = 200000
 MINTIME = 0.1
-TIMEDIV = 20.0
+TIMEDIV = 12.0
 NODES = 800
 C = 2.2
+ENDGAME_COUNT = 12
 
 
 logfile = open("a0lite.log", "a+")
@@ -52,10 +53,13 @@ def process_position(tokens):
 
 
 def load_network():
-    log("Loading network")
+    log("Loading network...")
 
+    main_net = search.BadGyalTorchNet(cuda=True)
+    endgame_net = search.LETorchNet(cuda=True)
+    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
     #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
-    net = search.EPDLRUNet(search.BadGyalTorchNet(cuda=True), CACHE_SIZE)
+    #net = search.EPDLRUNet(search.BadGyalTorchNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
     #net = search.BadGyalNet(cuda=True)
     return net
@@ -139,6 +143,7 @@ def main():
                 send("info string tree size {}, expanded {}".format(sz, exp_sz))
             else:
                 send("info string no tree reuse")
+            send("info string piece count {}".format(len(board.piece_map())))
             if my_time != None:
                 best, score, tree = search.UCT_search(board, 1000000, net=nn, C=C, max_time=my_time, send=send, tree=tree)
             else:
