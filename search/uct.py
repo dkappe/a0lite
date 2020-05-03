@@ -1,5 +1,6 @@
 import numpy as np
 import math
+from math import sqrt
 import chess
 from collections import OrderedDict
 from time import time
@@ -36,7 +37,7 @@ class UCTNode():
         return self.total_value / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT))
 
     def U(self):  # returns float
-        return (math.sqrt(self.parent.number_visits)
+        return (sqrt(self.parent.number_visits)
                 * self.prior / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT)))
 
     def best_child(self, C):
