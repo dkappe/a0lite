@@ -11,11 +11,11 @@ FPU = -1.0
 FPU_ROOT = 0.0
 PRUNER = Pruner(factor=1.0)
 MATE_VAL = 32000
-BATCH_SIZE = 128
-COLLISION_SIZE = 16
-VIRTUAL_LOSS_WEIGHT = 3
+BATCH_SIZE = 64
+COLLISION_SIZE = 999
+VIRTUAL_LOSS_WEIGHT = 1.3
 DRAW_THRESHOLD = -120
-SINGLE_BATCH = 45
+SINGLE_BATCH = 2
 
 class UCTNode():
     def __init__(self, board=None, parent=None, move=None, prior=0):
@@ -34,7 +34,8 @@ class UCTNode():
         self.virtual_loss = 0
 
     def Q(self):  # returns float
-        return self.total_value / (1 + self.number_visits + (self.virtual_loss * VIRTUAL_LOSS_WEIGHT))
+        calc_loss = (self.virtual_loss * VIRTUAL_LOSS_WEIGHT)
+        return (self.total_value - calc_loss) / (1 + self.number_visits + calc_loss)
 
     def U(self):  # returns float
         return (sqrt(self.parent.number_visits)
