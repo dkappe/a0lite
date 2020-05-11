@@ -10,6 +10,7 @@ TIMEDIV = 12.0
 NODES = 800
 C = 2.2
 ENDGAME_COUNT = 12
+EGTB = "/home/dkappe/chess/egtb"
 
 
 logfile = open("a0lite.log", "a+")
@@ -57,7 +58,7 @@ def load_network():
 
     main_net = search.BadGyalTorchNet(cuda=True)
     endgame_net = search.LETorchNet(cuda=True)
-    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
+    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE, tbpath=EGTB)
     #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.BadGyalTorchNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)

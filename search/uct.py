@@ -72,6 +72,9 @@ class UCTNode():
     def add_child(self, move, prior):
         self.children[move] = UCTNode(parent=self, move=move, prior=prior)
 
+    def info(self):
+        return "parent {} visits {} vloss {} children {}".format(self.parent, self.number_visits, self.virtual_loss, len(self.children))
+
     def backup(self, value_estimate: float):
         current = self
         # Child nodes are multiplied by -1 because we want max(-opponent eval)
@@ -79,19 +82,23 @@ class UCTNode():
         while current.parent is not None:
             current.number_visits += 1
             current.virtual_loss -= 1
+            #assert current.virtual_loss >= 0, current.info()
             current.total_value += (value_estimate *
                                     turnfactor)
             current = current.parent
             turnfactor *= -1
         current.number_visits += 1
-        current.virtual_loss -= 1
+        current.virtual_loss = 0
+        #assert current.virtual_loss >= 0, current.info()
 
     def undo_virtual_loss(self):
         current = self
         while current.parent is not None:
             current.virtual_loss -= 1
+            #assert current.virtual_loss >= 0, current.info()
             current = current.parent
-        current.virtual_loss -= 1
+        current.virtual_loss = 0
+        #assert current.virtual_loss >= 0, current.info()
 
     def makeroot(self):
         self.parent = None
@@ -121,7 +128,6 @@ class UCTNode():
     def match_position(self, board):
         return self.board.epd() == board.epd()
 
-
 def process_batch(net, batch, collision_nodes):
     for leaf in collision_nodes:
         leaf.undo_virtual_loss()
@@ -136,7 +142,12 @@ def process_batch(net, batch, collision_nodes):
     # empty the list
     batch *= 0
 
+def send_info(send, bestmove, count, delta, score, tbhits):
+    if send != None:
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} tbhits {} pv {}".format(score, count, int(round(count/delta, 0)), tbhits, bestmove))
+
 def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, tree=None, send=None):
+    net.reset_tbhits()
     if max_time == None:
         # search for a maximum of an hour
         max_time = 3600.0
@@ -146,12 +157,12 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
     # if we have a mate or all moves result in mates or draws, handle it without a search
     mate = PRUNER.get_mate()
     if mate != None:
-        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(MATE_VAL, 0, 0, mate))
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} tbhits {} pv {}".format(MATE_VAL, 0, 0, 0, mate))
         return mate, MATE_VAL, None
 
     if PRUNER.all_terminal():
         draw = PRUNER.get_draw()
-        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(0, 0, 0, draw))
+        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} tbhits {} pv {}".format(0, 0, 0, 0, draw))
         return draw, 0, None
 
     # reduce num_reads if there is only one move
@@ -163,6 +174,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
 
     start = time()
     count = 0
+
     collisions = 0
     cache_hits = 0
 
@@ -231,7 +243,7 @@ def UCT_search(board, num_reads, net=None, C=1.0, verbose=False, max_time=None, 
         for nd in sorted(root.children.items(), key= lambda item: item[1].number_visits):
             send("info string {} {} \t(P: {}%) \t(Q: {})".format(nd[1].move, nd[1].number_visits, round(nd[1].prior*100,2), round(nd[1].Q(), 5)))
         send("info string collisions {} cache hits {} nps avg {}".format(collisions, cache_hits, round(PRUNER.nps, 2)))
-        send("info depth 1 seldepth 1 score cp {} nodes {} nps {} pv {}".format(score, count, int(round(count/delta, 0)), bestmove))
+        send_info(send, bestmove, count, delta, score, net.tb_hits())
 
     # if we have a bad score, go for a draw
     if score < DRAW_THRESHOLD:
