@@ -1,5 +1,7 @@
 # a0lite
 
+*Is this lc0?* Definitely not. Lc0 is a clone of alpha zero chess, based on the paper by Deep Mind. Also, lc0 is a somewhat complicated, brittle bit of C++ code that runs into the thousand of lines. A0lite, by contrast, is a very simple python-based MCTS/UCT engine that tries to be simple and easy to understand.
+
 The most basic NN MCTS engine in 95 lines of python. It's single threaded and doesn't make use of "smart" pruning or tree reuse. It's meant for tinkering. As such, more complex developments will be in branches rather than in the master. Also check out the forks and see what others are doing.
 
 You will need to install [badgyal](https://github.com/dkappe/badgyal) for the neural nets.
