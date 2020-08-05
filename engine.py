@@ -113,6 +113,14 @@ def main():
                 my_time = int(tokens[2])/1000.0
                 if my_time < MINTIME:
                     my_time = MINTIME
+            # hack to deal with tcec
+            if (len(tokens) == 7) and (tokens[1] == 'wtime'):
+                if (tokens[5] == "winc"):
+                    tokens.append("binc")
+                    tokens.append("0")
+                else:
+                    tokens.insert(5, "0")
+                    tokens.insert(5, "winc")
             if (len(tokens) == 9) and (tokens[1] == 'wtime'):
                 wtime = int(tokens[2])
                 btime = int(tokens[4])
