@@ -45,6 +45,9 @@ def process_position(tokens):
         for i in range(offset+1, len(tokens)):
             board.push_uci(tokens[i])
 
+    # deal with cutechess bug where a drawn positions is passed in
+    if board.can_claim_draw():
+        board.clear_stack()
     return board
 
 
