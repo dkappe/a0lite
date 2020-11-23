@@ -1,6 +1,7 @@
 from search.net import Net
 from search.badgyal_net import BadGyalNet
 from search.badgyal_torch_net import BadGyalTorchNet
+from search.badgyalxl_torch_net import BadGyalXLTorchNet
 from search.le_torch_net import LETorchNet
 from search.meangirl_net import MeanGirlNet
 from search.epdlru_net import EPDLRUNet

@@ -55,9 +55,11 @@ def process_position(tokens):
 def load_network():
     log("Loading network...")
 
-    main_net = search.BadGyalTorchNet(cuda=True)
-    endgame_net = search.LETorchNet(cuda=True)
-    net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
+    main_net = search.BadGyalXLTorchNet(cuda=True)
+    #main_net = search.BadGyalTorchNet(cuda=True)
+    #endgame_net = search.LETorchNet(cuda=True)
+    #net = search.EPDLRUNet(search.ComboNet(main_net=main_net, end_net=endgame_net, piece_count=ENDGAME_COUNT), CACHE_SIZE)
+    net = search.EPDLRUNet(main_net, CACHE_SIZE)
     #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.BadGyalTorchNet(cuda=True), CACHE_SIZE)
     #net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
