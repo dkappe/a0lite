@@ -2,20 +2,17 @@ import badgyal
 import chess
 
 class BadGyalNet:
-    def __init__(self, cuda=True):
+    def __init__(self, device="cpu"):
         super().__init__()
-        self.net = badgyal.BGNet(cuda=cuda)
+        self.net = badgyal.BGNet(device=device)
 
     def evaluate(self, board : chess.Board):
-        result = None
-        if board.is_game_over(claim_draw=True):
-            result = board.result(claim_draw=True)
-
-        if result != None:
-            if result == "1/2-1/2":
+        outcome = board.outcome(claim_draw=True)
+        if outcome is not None:
+            if outcome.winner is None:
                 return dict(), 0.0
-            else:
-                # Always return -1.0 when checkmated
-                # and we are checkmated because it's our turn to move
-                return dict(), -1.0
+            # +1.0 if the side to move won, -1.0 if they lost
+            if outcome.winner == board.turn:
+                return dict(), 1.0
+            return dict(), -1.0
         return self.net.eval(board)

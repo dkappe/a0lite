@@ -3,6 +3,7 @@ import chess
 import chess.pgn
 import sys
 import traceback
+import argparse
 
 CACHE_SIZE = 200000
 MINTIME = 0.1
@@ -54,15 +55,25 @@ def process_position(tokens):
 
 
 
-def load_network():
-    log("Loading network")
+def load_network(net_name, device):
+    log("Loading network ({} device={})".format(net_name, device))
 
-    #net = search.EPDLRUNet(search.BadGyalNet(cuda=True), CACHE_SIZE)
-    net = search.EPDLRUNet(search.MeanGirlNet(cuda=False), CACHE_SIZE)
-    return net
+    if net_name == "mg":
+        inner = search.MeanGirlNet(device=device)
+    elif net_name == "bg":
+        inner = search.BadGyalNet(device=device)
+    else:
+        raise ValueError("unknown net: {}".format(net_name))
+    return search.EPDLRUNet(inner, CACHE_SIZE)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="A0 Lite")
+    parser.add_argument("--net", choices=["mg", "bg"], default="mg",
+                        help="network to use: mg=MeanGirl, bg=BadGyal (default: mg)")
+    parser.add_argument("--runtime", choices=["cpu", "cuda", "mps"], default="cpu",
+                        help="torch device: cpu, cuda, or mps (default: cpu)")
+    args = parser.parse_args()
 
     send("A0 Lite")
     board = chess.Board()
@@ -84,7 +95,7 @@ def main():
             exit(0)
         elif tokens[0] == "isready":
             if nn == None:
-                nn = load_network()
+                nn = load_network(args.net, args.runtime)
             send("readyok")
         elif tokens[0] == "ucinewgame":
             board = chess.Board()
@@ -121,7 +132,7 @@ def main():
                 if my_time < MINTIME:
                     my_time = MINTIME
             if nn == None:
-                nn = load_network()
+                nn = load_network(args.net, args.runtime)
 
 
             if my_time != None:
@@ -132,6 +143,8 @@ def main():
 
 try:
     main()
+except (SystemExit, KeyboardInterrupt):
+    raise
 except:
     exc_type, exc_value, exc_tb = sys.exc_info()
     log(traceback.format_exception(exc_type, exc_value, exc_tb))
